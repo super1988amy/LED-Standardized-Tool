@@ -1,0 +1,473 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 150px; background-color: #F7F2F0; font-family: sans-serif; }
+  .led-editor { padding: 1.5rem 0; }
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .color-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; flex-shrink: 0; }
+  .color-btn:hover { transform: scale(1.15); }
+  .color-btn.active { border-color: #111; transform: scale(1.15); }
+  .sep { width: 1px; height: 24px; background: #ddd; margin: 0 2px; }
+  .action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: transparent; border: 0.5px solid #ccc; border-radius: 6px; font-size: 13px; color: #111; cursor: pointer; white-space: nowrap; }
+  .action-btn:hover { background: #f5f5f5; }
+  .action-btn.danger { color: #dc2626; border-color: #fca5a5; }
+  .action-btn.danger:hover { background: #fef2f2; }
+  .action-btn.export { color: #2563eb; border-color: #93c5fd; }
+  .action-btn.export:hover { background: #eff6ff; }
+  .action-btn.is-active { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .section-label { font-size: 11px; font-weight: 500; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  .toggle-wrap { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+  .toggle-track { width: 32px; height: 18px; border-radius: 9px; background: #ccc; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .toggle-track.on { background: #3b82f6; }
+  .toggle-thumb { width: 12px; height: 12px; border-radius: 50%; background: #fff; position: absolute; top: 3px; left: 3px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle-track.on .toggle-thumb { left: 17px; }
+  .toggle-label { font-size: 13px; color: #666; }
+  .timeline-wrap { overflow-x: auto; padding-bottom: 8px; }
+  .timeline-area { display: inline-block; min-width: 100%; }
+  .timeline-row { display: flex; align-items: stretch; }
+  .cell { width: 26px; flex-shrink: 0; height: 52px; border-top: 0.5px solid #ddd; border-bottom: 0.5px solid #ddd; border-right: 0.5px solid #ddd; cursor: pointer; position: relative; }
+  .cell:first-child { border-left: 0.5px solid #ddd; border-radius: 6px 0 0 6px; }
+  .cell.last-cell { border-radius: 0 6px 6px 0; }
+  .cell:hover::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.18); pointer-events: none; }
+  .cell.off { background: #d1d5db; }
+  .cell.tick-500 { border-left: 2px solid rgba(100,100,100,.45) !important; }
+  .cell.playing { outline: 2px solid rgba(59,130,246,.7); }
+  .delay-cell { flex-shrink: 0; height: 52px; min-width: 72px; border: 0.5px dashed #ccc; border-radius: 6px; margin-left: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; position: relative; padding: 4px 10px; gap: 2px; }
+  .delay-cell-label { font-size: 9px; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; }
+  .delay-cell-value { font-size: 12px; font-weight: 600; color: #111; white-space: nowrap; }
+  .delay-remove { position: absolute; top: 3px; right: 4px; width: 14px; height: 14px; border-radius: 50%; border: none; background: transparent; color: #9ca3af; cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .delay-remove:hover { color: #dc2626; background: #fef2f2; }
+  .delay-remove.export-hidden { visibility: hidden; }
+  .loop-cell { width: 52px; flex-shrink: 0; height: 52px; border: 2px dashed #ccc; border-radius: 6px; margin-left: 6px; display: flex; align-items: center; justify-content: center; background: #f9fafb; color: #9ca3af; }
+  .loop-cell svg { width: 28px; height: 28px; opacity: .6; }
+  .time-ruler { position: relative; height: 24px; margin-top: 2px; }
+  .time-ruler.hidden { opacity: 0; height: 0; overflow: hidden; margin-top: 0; }
+  .tick-mark { position: absolute; display: flex; flex-direction: column; align-items: center; }
+  .tick-mark.align-left { align-items: flex-start; }
+  .tick-line { width: 1.5px; height: 6px; background: #9ca3af; }
+  .tick-label { font-size: 10px; color: #9ca3af; white-space: nowrap; margin-top: 2px; }
+  .legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 1rem; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .total-label { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+  .preview-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: .5px solid #e5e7eb; }
+  .preview-label { font-size: 11px; font-weight: 500; color: #666; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px; }
+  .led-preview-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .led-bulb { width: 36px; height: 36px; border-radius: 50%; background: #3a3a3a; transition: background .05s, box-shadow .05s; }
+  .led-time-label { font-size: 10px; color: #9ca3af; margin-top: 6px; text-align: center; }
+  .preview-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .preview-status { font-size: 12px; color: #9ca3af; }
+  .export-row { display: flex; gap: 8px; margin-top: 1.25rem; flex-wrap: wrap; align-items: center; }
+  .delay-adder { display: flex; align-items: center; gap: 6px; }
+  .delay-ms-input { width: 72px; border: .5px solid #ccc; border-radius: 6px; background: #fff; color: #111; font-size: 13px; padding: 5px 8px; }
+  .delay-ms-input:focus { outline: none; border-color: #3b82f6; }
+  .delay-ms-suffix { font-size: 12px; color: #9ca3af; }
+  .output-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; }
+  .output-modal.open { display: flex; }
+  .output-box { background: #fff; border-radius: 12px; padding: 24px; max-width: 340px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+  .output-box h3 { margin: 0; font-size: 15px; font-weight: 600; color: #111; }
+  .output-box p { margin: 0; font-size: 12px; color: #666; text-align: center; line-height: 1.5; }
+  .output-img { border-radius: 8px; border: 1px solid #e5e7eb; max-width: 100%; image-rendering: pixelated; }
+  .output-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .debug-note { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="led-editor">
+  <div class="toolbar">
+    <span class="section-label">Color</span>
+    <button class="color-btn active" data-color="off"    title="Off"    style="background:#d1d5db;"                      onclick="selectColor('off')"></button>
+    <button class="color-btn"        data-color="white"  title="White"  style="background:#f9fafb;border-color:#d1d5db;" onclick="selectColor('white')"></button>
+    <button class="color-btn"        data-color="red"    title="Red"    style="background:#FF0000;"                      onclick="selectColor('red')"></button>
+    <button class="color-btn"        data-color="orange" title="Orange" style="background:#FF9000;"                      onclick="selectColor('orange')"></button>
+    <button class="color-btn"        data-color="yellow" title="Yellow" style="background:#FFFF00;border-color:#ccc;"    onclick="selectColor('yellow')"></button>
+    <button class="color-btn"        data-color="green"  title="Green"  style="background:#33CC00;"                      onclick="selectColor('green')"></button>
+    <button class="color-btn"        data-color="cyan"   title="Cyan"   style="background:#66FFFF;border-color:#ccc;"    onclick="selectColor('cyan')"></button>
+    <button class="color-btn"        data-color="blue"   title="Blue"   style="background:#3366FF;"                      onclick="selectColor('blue')"></button>
+    <button class="color-btn"        data-color="purple" title="Purple" style="background:#C107FF;"                      onclick="selectColor('purple')"></button>
+    <div class="sep"></div>
+    <span class="section-label">Cells</span>
+    <button class="action-btn" onclick="addCell()">+ Add</button>
+    <button class="action-btn danger" onclick="removeCell()">− Remove</button>
+    <div class="sep"></div>
+    <button class="action-btn" id="loopBtn" onclick="toggleLoop()">↺ Loop</button>
+    <div class="sep"></div>
+    <div class="delay-adder">
+      <input class="delay-ms-input" id="delayMsInput" type="number" min="1" step="1" value="20000"/>
+      <span class="delay-ms-suffix">ms</span>
+      <button class="action-btn" onclick="addDelay()">⏸ Add delay</button>
+    </div>
+    <div class="sep"></div>
+    <label class="toggle-wrap" onclick="toggleRuler()">
+      <div class="toggle-track on" id="rulerTrack"><div class="toggle-thumb"></div></div>
+      <span class="toggle-label">Timestamps</span>
+    </label>
+  </div>
+
+  <div class="timeline-wrap">
+    <div class="timeline-area" id="timelineArea">
+      <div class="timeline-row" id="timelineRow"></div>
+      <div class="time-ruler" id="timeRuler"></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#d1d5db;"></div>Off</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9fafb;border:1px solid #d1d5db;"></div>White</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FF0000;"></div>Red</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FF9000;"></div>Orange</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FFFF00;border:1px solid #ccc;"></div>Yellow</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#33CC00;"></div>Green</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#66FFFF;border:1px solid #ccc;"></div>Cyan</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3366FF;"></div>Blue</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#C107FF;"></div>Purple</div>
+  </div>
+  <div class="total-label" id="totalLabel"></div>
+
+  <div class="preview-section">
+    <div class="preview-label">LED Preview</div>
+    <div class="led-preview-wrap">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="led-bulb" id="ledBulb"></div>
+        <div class="led-time-label" id="ledTimeLabel">—</div>
+      </div>
+      <div class="preview-controls">
+        <button class="action-btn" id="playBtn" onclick="togglePlay()">▶ Play</button>
+        <button class="action-btn" onclick="resetPreview()">⏹ Stop</button>
+        <span class="preview-status" id="previewStatus">Stopped</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="export-row">
+    <button class="action-btn export" onclick="exportPNG()">↓ Export PNG</button>
+    <button class="action-btn export" onclick="copyToClipboard()">⎘ Copy image</button>
+    <button class="action-btn export" onclick="exportGIF()">↓ Export GIF</button>
+  </div>
+  <div id="exportMsg" style="font-size:12px;color:#16a34a;margin-top:6px;min-height:18px;"></div>
+  <div id="debugNote" class="debug-note"></div>
+</div>
+
+<div class="output-modal" id="outputModal" onclick="closeModal(event)">
+  <div class="output-box">
+    <h3 id="outputTitle">Export</h3>
+    <p id="outputDesc"></p>
+    <img id="outputImg" class="output-img" style="display:none;"/>
+    <div class="output-actions" id="outputActions"></div>
+    <button class="action-btn" onclick="document.getElementById('outputModal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const COLOR_MAP = { off:'#d1d5db', white:'#f9fafb', red:'#FF0000', orange:'#FF9000', yellow:'#FFFF00', green:'#33CC00', cyan:'#66FFFF', blue:'#3366FF', purple:'#C107FF' };
+// Exact RGB triples used both for CSS and for the GIF canvas — must match 1:1, no alpha blending anywhere.
+const COLOR_RGB = { off:[209,213,219], white:[249,250,251], red:[255,0,0], orange:[255,144,0], yellow:[255,255,0], green:[51,204,0], cyan:[102,255,255], blue:[51,102,255], purple:[193,7,255] };
+const GLOW_RGB  = { white:'249,250,251', red:'255,0,0', orange:'255,144,0', yellow:'255,255,0', green:'51,204,0', cyan:'102,255,255', blue:'51,102,255', purple:'193,7,255' };
+
+const CELL_W=26, MS=125, TICK_MS=500, CELLS_PER_TICK=4;
+const GIF_DELAY_CS = 13; // 130ms ≈ 125ms
+
+const LOOP_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+
+let cells=['off','off','off'], delays=[], delayIdCounter=0;
+let currentColor='off', loopEnabled=false, rulerVisible=true, isPainting=false;
+let previewTimer=null, previewFrame=0, isPlaying=false;
+
+function fmtRuler(ms){ if(ms>=1000&&ms%1000===0)return(ms/1000)+'s'; if(ms>=1000)return(ms/1000).toFixed(1)+'s'; return ms+'ms'; }
+function fmtMs(ms){ return ms+'ms'; }
+
+function selectColor(c){ currentColor=c; document.querySelectorAll('.color-btn').forEach(b=>b.classList.toggle('active',b.dataset.color===c)); }
+
+function buildFrameSeq(){
+  const f=[];
+  cells.forEach(color=>f.push({color}));
+  delays.forEach(d=>{ const n=Math.ceil(d.ms/MS); for(let i=0;i<n;i++) f.push({color:'off',isDelay:true}); });
+  return f;
+}
+
+function render(){
+  const row=document.getElementById('timelineRow'); row.innerHTML='';
+  cells.forEach((color,i)=>{
+    const cell=document.createElement('div');
+    const isTick=i>0&&i%CELLS_PER_TICK===0, hasTrailing=delays.length>0||loopEnabled;
+    cell.className='cell'+(color==='off'?' off':'')+(isTick?' tick-500':'')+(i===cells.length-1&&!hasTrailing?' last-cell':'');
+    cell.style.background=COLOR_MAP[color];
+    cell.addEventListener('mousedown',()=>{isPainting=true;paintCell(i);});
+    cell.addEventListener('mouseenter',()=>{if(isPainting)paintCell(i);});
+    cell.addEventListener('touchstart',e=>{e.preventDefault();isPainting=true;paintCell(i);});
+    row.appendChild(cell);
+  });
+  delays.forEach(d=>{
+    const dc=document.createElement('div'); dc.className='delay-cell';
+    dc.innerHTML=`<button class="delay-remove" onclick="removeDelay(${d.id})">✕</button><span class="delay-cell-label">Delay</span><span class="delay-cell-value">${fmtMs(d.ms)}</span>`;
+    row.appendChild(dc);
+  });
+  if(loopEnabled){const lc=document.createElement('div');lc.className='loop-cell';lc.innerHTML=LOOP_SVG;row.appendChild(lc);}
+  renderRuler();
+  const pm=cells.length*MS, dm=delays.reduce((s,d)=>s+d.ms,0);
+  let txt=`Pattern: ${fmtMs(pm)}`; if(dm>0)txt+=` + Delay: ${fmtMs(dm)} = Total: ${fmtMs(pm+dm)}`; if(loopEnabled)txt+=' · looping';
+  document.getElementById('totalLabel').textContent=txt;
+  resetPreview();
+}
+
+function renderRuler(){
+  const ruler=document.getElementById('timeRuler'); ruler.innerHTML='';
+  const totalMs=cells.length*MS, totalWidth=cells.length*CELL_W; ruler.style.width=totalWidth+'px';
+  for(let ms=0;ms<=totalMs;ms+=TICK_MS){
+    const px=(ms/totalMs)*totalWidth, mark=document.createElement('div'), isFirst=ms===0;
+    mark.className='tick-mark'+(isFirst?' align-left':''); mark.style.left=px+'px';
+    if(!isFirst)mark.style.transform='translateX(-50%)';
+    mark.innerHTML=`<div class="tick-line"></div><div class="tick-label">${fmtRuler(ms)}</div>`;
+    ruler.appendChild(mark);
+  }
+}
+
+function paintCell(i){
+  cells[i]=currentColor;
+  const el=document.getElementById('timelineRow').children[i];
+  const isTick=i>0&&i%CELLS_PER_TICK===0, isLast=i===cells.length-1&&delays.length===0&&!loopEnabled;
+  el.className='cell'+(currentColor==='off'?' off':'')+(isTick?' tick-500':'')+(isLast?' last-cell':'');
+  el.style.background=COLOR_MAP[currentColor];
+}
+
+function addCell(){cells.push('off');render();}
+function removeCell(){if(cells.length>1){cells.pop();render();}}
+function addDelay(){const ms=parseInt(document.getElementById('delayMsInput').value);if(!ms||ms<1)return;delays.push({id:delayIdCounter++,ms});render();}
+function removeDelay(id){delays=delays.filter(d=>d.id!==id);render();}
+function toggleLoop(){loopEnabled=!loopEnabled;document.getElementById('loopBtn').className='action-btn'+(loopEnabled?' is-active':'');render();}
+function toggleRuler(){
+  rulerVisible=!rulerVisible;
+  document.getElementById('rulerTrack').className='toggle-track'+(rulerVisible?' on':'');
+  document.getElementById('timeRuler').className='time-ruler'+(rulerVisible?'':' hidden');
+}
+
+function setLED(color){
+  const b=document.getElementById('ledBulb');
+  if(color==='off'){b.style.background='#3a3a3a';b.style.boxShadow='none';return;}
+  b.style.background=COLOR_MAP[color];
+  b.style.boxShadow=`0 0 12px 4px rgba(${GLOW_RGB[color]},.55)`;
+}
+function togglePlay(){isPlaying?pausePreview():startPreview();}
+function startPreview(){
+  const seq=buildFrameSeq();if(!seq.length)return;
+  isPlaying=true;document.getElementById('playBtn').textContent='⏸ Pause';document.getElementById('previewStatus').textContent='Playing';
+  function tick(){
+    const idx=previewFrame%seq.length,frame=seq[idx];
+    setLED(frame.color);document.getElementById('ledTimeLabel').textContent=fmtMs(idx*MS);
+    document.querySelectorAll('.cell').forEach((el,i)=>el.classList.toggle('playing',!frame.isDelay&&i===idx));
+    previewFrame++;
+    if(!loopEnabled&&previewFrame>=seq.length){setLED('off');stopPreview();return;}
+    previewTimer=setTimeout(tick,MS);
+  }
+  tick();
+}
+function pausePreview(){clearTimeout(previewTimer);isPlaying=false;document.getElementById('playBtn').textContent='▶ Play';document.getElementById('previewStatus').textContent='Paused';document.querySelectorAll('.cell').forEach(el=>el.classList.remove('playing'));}
+function stopPreview(){clearTimeout(previewTimer);isPlaying=false;document.getElementById('playBtn').textContent='▶ Play';document.getElementById('previewStatus').textContent='Stopped';document.querySelectorAll('.cell').forEach(el=>el.classList.remove('playing'));}
+function resetPreview(){stopPreview();previewFrame=0;setLED('off');document.getElementById('ledTimeLabel').textContent='—';}
+
+function showModal(title,desc,dataURL,filename){
+  document.getElementById('outputTitle').textContent=title;
+  document.getElementById('outputDesc').textContent=desc;
+  const img=document.getElementById('outputImg');img.src=dataURL;img.style.display='block';
+  const acts=document.getElementById('outputActions');acts.innerHTML='';
+  const dl=document.createElement('a');dl.className='action-btn export';dl.href=dataURL;dl.download=filename;dl.textContent='↓ Save file';acts.appendChild(dl);
+  document.getElementById('outputModal').classList.add('open');
+}
+function closeModal(e){if(e.target===document.getElementById('outputModal'))document.getElementById('outputModal').classList.remove('open');}
+
+function hideX(){document.querySelectorAll('.delay-remove').forEach(b=>b.classList.add('export-hidden'));}
+function showX(){document.querySelectorAll('.delay-remove').forEach(b=>b.classList.remove('export-hidden'));}
+function exportPNG(){
+  hideX();
+  html2canvas(document.getElementById('timelineArea'),{backgroundColor:null,scale:3}).then(canvas=>{
+    showX();showModal('Export PNG','Right-click to save, or click Save file.',canvas.toDataURL('image/png'),'led-pattern.png');
+  });
+}
+function copyToClipboard(){
+  hideX();
+  html2canvas(document.getElementById('timelineArea'),{backgroundColor:null,scale:3}).then(canvas=>{
+    showX();
+    canvas.toBlob(blob=>{
+      if(!blob)return;
+      navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(()=>showMsg('Copied!')).catch(()=>showMsg('Not supported.'));
+    });
+  });
+}
+
+// ── FULLY FLAT: every frame is built from EXACTLY 3 fixed colours: bg, ring, bulb. ──
+// No alpha, no gradient, no blending anywhere. Background and ring colour are IDENTICAL
+// across all frames regardless of LED colour — only the bulb fill colour changes.
+// This guarantees the total palette size is fixed at (1 bg + 1 ring + N bulb colours),
+// completely independent of how many frames/colours appear in the pattern.
+const BG_RGB   = [26, 26, 26];   // #1a1a1a — same in every frame
+const RING_RGB = [58, 58, 58];   // #3a3a3a — same in every frame (this is also the "off" bulb colour)
+
+function drawLEDFrame(ctx, color, SIZE){
+  // 1. Background — flat fill, no alpha
+  ctx.fillStyle = `rgb(${BG_RGB[0]},${BG_RGB[1]},${BG_RGB[2]})`;
+  ctx.fillRect(0,0,SIZE,SIZE);
+
+  const cx = SIZE/2, cy = SIZE/2;
+  const ringR = SIZE/2 - 6;
+  const bulbR = SIZE/2 - 14;
+
+  // 2. Outer ring — flat fill, no alpha, same colour always
+  ctx.fillStyle = `rgb(${RING_RGB[0]},${RING_RGB[1]},${RING_RGB[2]})`;
+  ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI*2); ctx.fill();
+
+  // 3. Bulb — flat fill, no alpha. 'off' uses ring colour so it blends into the ring.
+  const rgb = color === 'off' ? RING_RGB : COLOR_RGB[color];
+  ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  ctx.beginPath(); ctx.arc(cx, cy, bulbR, 0, Math.PI*2); ctx.fill();
+}
+
+function exportGIF(){
+  showMsg('Generating GIF…');
+  const seq = buildFrameSeq();
+  if(!seq.length){ showMsg('No frames.'); return; }
+
+  const SIZE = 80;
+  const offscreen = document.createElement('canvas');
+  offscreen.width = SIZE; offscreen.height = SIZE;
+  const ctx = offscreen.getContext('2d');
+  ctx.imageSmoothingEnabled = false; // avoid anti-aliasing creating extra blended colours at edges... 
+  // NOTE: canvas arc() still antialiases edges regardless of this flag in most browsers,
+  // so we additionally snap every pixel to the nearest of our known palette below.
+
+  const KNOWN_COLORS = [BG_RGB, RING_RGB, ...Object.values(COLOR_RGB)];
+
+  function snapToKnown(r,g,b){
+    let best = KNOWN_COLORS[0], bestD = Infinity;
+    for(const c of KNOWN_COLORS){
+      const d = (r-c[0])**2 + (g-c[1])**2 + (b-c[2])**2;
+      if(d < bestD){ bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  function getSnappedFrame(color){
+    drawLEDFrame(ctx, color, SIZE);
+    const imgData = ctx.getImageData(0,0,SIZE,SIZE);
+    const d = imgData.data;
+    // Snap every pixel's RGB to the nearest known flat colour, eliminating anti-aliasing fringes.
+    for(let i = 0; i < d.length; i += 4){
+      const snapped = snapToKnown(d[i], d[i+1], d[i+2]);
+      d[i] = snapped[0]; d[i+1] = snapped[1]; d[i+2] = snapped[2];
+    }
+    return new Uint8ClampedArray(d);
+  }
+
+  const gifFrames = [];
+  let delayOffCount = 0;
+
+  for(let i = 0; i < seq.length; i++){
+    const { color, isDelay } = seq[i];
+    if(isDelay){
+      delayOffCount++;
+      const next = seq[i+1];
+      if(!next || !next.isDelay){
+        gifFrames.push({ delayCs: delayOffCount * GIF_DELAY_CS, rgba: getSnappedFrame('off') });
+        delayOffCount = 0;
+      }
+    } else {
+      gifFrames.push({ delayCs: GIF_DELAY_CS, rgba: getSnappedFrame(color) });
+    }
+  }
+
+  const bytes = makeGIF(gifFrames, SIZE, SIZE, loopEnabled);
+  let binary=''; for(let i=0;i<bytes.length;i++) binary+=String.fromCharCode(bytes[i]);
+  const dataURL='data:image/gif;base64,'+btoa(binary);
+  showMsg('');
+  document.getElementById('debugNote').textContent = `Frames: ${gifFrames.length}, palette size fixed at ${KNOWN_COLORS.length} colours`;
+  showModal('Export GIF','Right-click the animation to save, or click Save file.',dataURL,'led-pattern.gif');
+}
+
+function showMsg(t){const el=document.getElementById('exportMsg');el.textContent=t;if(t)setTimeout(()=>el.textContent='',4000);}
+
+function lzwEncode(indices, minCodeSize){
+  const clearCode=1<<minCodeSize, eoiCode=clearCode+1;
+  let codeSize=minCodeSize+1, nextCode=eoiCode+1, maxCode=1<<codeSize;
+  const bits=[];
+  function writeBits(code,size){for(let i=0;i<size;i++)bits.push((code>>i)&1);}
+  const table=new Map();
+  function resetTable(){table.clear();for(let i=0;i<clearCode;i++)table.set(i+'',i);codeSize=minCodeSize+1;maxCode=1<<codeSize;nextCode=eoiCode+1;}
+  resetTable(); writeBits(clearCode,codeSize);
+  let prefix=indices[0]+'';
+  for(let i=1;i<indices.length;i++){
+    const key=prefix+','+indices[i];
+    if(table.has(key)){prefix=key;}
+    else{
+      writeBits(table.get(prefix),codeSize);
+      if(nextCode<4096){table.set(key,nextCode++);if(nextCode>maxCode&&codeSize<12){codeSize++;maxCode<<=1;}}
+      else{writeBits(clearCode,codeSize);resetTable();}
+      prefix=indices[i]+'';
+    }
+  }
+  writeBits(table.get(prefix),codeSize); writeBits(eoiCode,codeSize);
+  const bytes=[];
+  for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8&&i+j<bits.length;j++)b|=bits[i+j]<<j;bytes.push(b);}
+  return bytes;
+}
+
+function makeGIF(frames, W, H, loop){
+  const out=[];
+  const w=(v)=>out.push(v&0xff);
+  const w2=(v)=>{w(v);w(v>>8);};
+  const ws=(s)=>{for(let i=0;i<s.length;i++)w(s.charCodeAt(i));};
+
+  const colorSet=new Map();
+  for(const f of frames){
+    const d=f.rgba;
+    for(let i=0;i<d.length;i+=4){
+      const k=(d[i]<<16)|(d[i+1]<<8)|d[i+2];
+      if(!colorSet.has(k))colorSet.set(k,[d[i],d[i+1],d[i+2]]);
+    }
+  }
+  const palette=Array.from(colorSet.values()).slice(0,256);
+  while(palette.length<256)palette.push([0,0,0]);
+
+  const palLookup=new Map();
+  for(let i=0;i<palette.length;i++){
+    const[r,g,b]=palette[i]; const k=(r<<16)|(g<<8)|b;
+    if(!palLookup.has(k))palLookup.set(k,i);
+  }
+  function nearestIdx(r,g,b){
+    const k=(r<<16)|(g<<8)|b;
+    if(palLookup.has(k))return palLookup.get(k);
+    let best=0,bestD=Infinity;
+    for(let i=0;i<palette.length;i++){
+      const d=(r-palette[i][0])**2+(g-palette[i][1])**2+(b-palette[i][2])**2;
+      if(d<bestD){bestD=d;best=i;}
+    }
+    return best;
+  }
+
+  ws('GIF89a'); w2(W); w2(H); w(0xf7); w(0); w(0);
+  for(const[r,g,b]of palette){w(r);w(g);w(b);}
+
+  if(loop){w(0x21);w(0xff);w(0x0b);ws('NETSCAPE2.0');w(3);w(1);w2(0);w(0);}
+
+  for(const f of frames){
+    w(0x21);w(0xf9);w(0x04);w(0x00);w2(f.delayCs);w(0);w(0);
+    w(0x2c);w2(0);w2(0);w2(W);w2(H);w(0x00);
+    const idx=new Uint8Array(W*H);
+    for(let i=0;i<W*H;i++) idx[i]=nearestIdx(f.rgba[i*4],f.rgba[i*4+1],f.rgba[i*4+2]);
+    const lzw=lzwEncode(idx,8); w(8);
+    let off=0;
+    while(off<lzw.length){const len=Math.min(255,lzw.length-off);w(len);for(let i=0;i<len;i++)w(lzw[off++]);}
+    w(0);
+  }
+  w(0x3b);
+  return new Uint8Array(out);
+}
+
+document.addEventListener('mouseup',()=>isPainting=false);
+document.addEventListener('touchend',()=>isPainting=false);
+render();
+</script>
+</body>
+</html>
